@@ -4,7 +4,7 @@ const resolveBaseUrl = (): string => {
   const isServer = typeof window === "undefined";
 
   if (isServer) {
-    return process.env.BASE_API_URL ?? "https://full-stack-web-pi.vercel.app/";
+    return process.env.BASE_API_URL ?? "http://localhost:8083";
   }
 
   if (process.env.NODE_ENV === "production") {

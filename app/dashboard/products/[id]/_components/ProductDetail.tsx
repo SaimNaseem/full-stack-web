@@ -2,7 +2,6 @@
 
 import {
   ChevronRightIcon,
-  SparklesIcon,
   StarIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -10,18 +9,10 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 
-import api from "@/lib/axios";
 import { TProduct } from "@/types";
 
 const ProductDetails = ({ product }: { product: TProduct }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // AI STATES
-  const [productName, setProductName] = useState(product.name);
-  const [productDescription, setProductDescription] = useState(
-    product.description,
-  );
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const hasValidImage = product.imageUrl && product.imageUrl.startsWith("http");
 
@@ -32,36 +23,6 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-  };
-
-  // AI GENERATE
-  const generateProductWithAI = async () => {
-    if (!hasValidImage) {
-      alert("This product needs an image first.");
-      return;
-    }
-
-    try {
-      setIsGenerating(true);
-
-      const response = await api.post(
-        "/api/v1/products/ai/product",
-        {
-          imageUrl: product.imageUrl,
-        },
-        {
-          timeout: 45000,
-        },
-      );
-
-      setProductName(response.data.name);
-      setProductDescription(response.data.description);
-    } catch (error) {
-      console.error("AI generation failed:", error);
-      alert("AI generation failed. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   useEffect(() => {
@@ -93,7 +54,7 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
 
         <ChevronRightIcon className="w-4 h-4 text-gray-400" />
 
-        <p>{productName}</p>
+        <p>{product.name}</p>
       </div>
 
       <div className="flex w-full space-x-5">
@@ -106,7 +67,7 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
             {hasValidImage ? (
               <Image
                 src={product.imageUrl}
-                alt={productName}
+                alt={product.name}
                 width={500}
                 height={500}
                 className="w-full h-full object-contain"
@@ -127,7 +88,7 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
               >
                 <Image
                   src={product.imageUrl}
-                  alt={`${productName} thumbnail`}
+                  alt={`${product.name} thumbnail`}
                   fill
                   className="object-cover"
                 />
@@ -150,35 +111,11 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
 
           {/* PRODUCT NAME */}
           <h2 className="text-gray-900 text-lg md:text-2xl font-medium">
-            {productName}
+            {product.name}
           </h2>
 
           {/* DESCRIPTION */}
-          <p className="text-gray-400 md:text-lg">{productDescription}</p>
-
-          {/* AI GENERATE */}
-          <button
-            type="button"
-            onClick={generateProductWithAI}
-            disabled={isGenerating || !hasValidImage}
-            className="
-              flex items-center justify-center gap-2
-              rounded-full
-              border border-gray-200
-              bg-white
-              px-5 py-2.5
-              text-sm font-medium
-              transition-all duration-200
-              hover:border-[#BAFC50]
-              hover:bg-[#BAFC50]/10
-              disabled:cursor-not-allowed
-              disabled:opacity-50
-            "
-          >
-            <SparklesIcon className="w-4 h-4" />
-
-            {isGenerating ? "Generating..." : "AI Generate"}
-          </button>
+          <p className="text-gray-400 md:text-lg">{product.description}</p>
 
           {/* PRICE */}
           <p className="text-xl md:text-3xl font-semibold text-gray-900">
@@ -216,7 +153,7 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
             <div className="max-w-5xl max-h-full">
               <Image
                 src={product.imageUrl}
-                alt={productName}
+                alt={product.name}
                 width={800}
                 height={800}
                 className="w-full h-auto max-h-[85vh] object-contain"

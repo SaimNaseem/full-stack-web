@@ -200,18 +200,37 @@ export async function POST(
   try {
     const resolvedParams = await params;
     const path = resolvedParams.path.join("/");
-    const body = await request.json();
+
+    const contentType = request.headers.get("content-type") || "";
+
+    let body: BodyInit;
+    const headers: HeadersInit = {};
+
+    if (contentType.includes("multipart/form-data")) {
+      // Image upload
+      body = await request.formData();
+
+      // IMPORTANT:
+      // Do not manually set Content-Type here.
+      // fetch will create the correct multipart boundary.
+    } else {
+      // Normal JSON POST, e.g. AI generation
+      const jsonBody = await request.json();
+
+      body = JSON.stringify(jsonBody);
+
+      headers["Content-Type"] = "application/json";
+    }
 
     const response = await fetch(`${BASE_API_URL}/${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      headers,
+      body,
     });
 
-    const contentType = response.headers.get("content-type");
-    const isJson = contentType && contentType.includes("application/json");
+    const responseContentType = response.headers.get("content-type");
+
+    const isJson = responseContentType?.includes("application/json");
 
     if (isJson) {
       const data = await response.json();
@@ -226,7 +245,7 @@ export async function POST(
     return new NextResponse(text, {
       status: response.status,
       headers: {
-        "Content-Type": contentType || "text/plain",
+        "Content-Type": responseContentType || "text/plain",
       },
     });
   } catch (error) {

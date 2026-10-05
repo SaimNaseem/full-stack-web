@@ -1,31 +1,32 @@
 "use client";
 
 import {
-  ChevronLeftIcon,
   ChevronRightIcon,
+  SparklesIcon,
   StarIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
+import api from "@/lib/axios";
 import { TProduct } from "@/types";
 
 const ProductDetails = ({ product }: { product: TProduct }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // Create array of product images (you can modify this to include different images)
-  const productImages = [
-    `/assets/products/${product.name}.png`,
-    `/assets/products/${product.name}.png`, // Same image for now, you can add different images
-    `/assets/products/${product.name}.png`,
-    `/assets/products/${product.name}.png`,
-  ];
+  // AI STATES
+  const [productName, setProductName] = useState(product.name);
+  const [productDescription, setProductDescription] = useState(
+    product.description,
+  );
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const openModal = (imageIndex: number) => {
-    setCurrentImageIndex(imageIndex);
+  const hasValidImage = product.imageUrl && product.imageUrl.startsWith("http");
+
+  const openModal = () => {
+    if (!hasValidImage) return;
     setIsModalOpen(true);
   };
 
@@ -33,37 +34,51 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
     setIsModalOpen(false);
   };
 
-  const nextImage = useCallback(() => {
-    setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
-  }, [productImages.length]);
+  // AI GENERATE
+  const generateProductWithAI = async () => {
+    if (!hasValidImage) {
+      alert("This product needs an image first.");
+      return;
+    }
 
-  const prevImage = useCallback(() => {
-    setCurrentImageIndex(
-      (prev) => (prev - 1 + productImages.length) % productImages.length,
-    );
-  }, [productImages.length]);
+    try {
+      setIsGenerating(true);
 
-  // Keyboard navigation
+      const response = await api.post(
+        "/api/v1/products/ai/product",
+        {
+          imageUrl: product.imageUrl,
+        },
+        {
+          timeout: 45000,
+        },
+      );
+
+      setProductName(response.data.name);
+      setProductDescription(response.data.description);
+    } catch (error) {
+      console.error("AI generation failed:", error);
+      alert("AI generation failed. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isModalOpen) return;
 
-      switch (event.key) {
-        case "Escape":
-          closeModal();
-          break;
-        case "ArrowLeft":
-          prevImage();
-          break;
-        case "ArrowRight":
-          nextImage();
-          break;
+      if (event.key === "Escape") {
+        closeModal();
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isModalOpen, nextImage, prevImage]);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModalOpen]);
 
   return (
     <div className="space-y-5 md:space-y-8">
@@ -75,138 +90,133 @@ const ProductDetails = ({ product }: { product: TProduct }) => {
         >
           Home
         </Link>
-        <ChevronRightIcon className="w-4 h-4 text-gray-lighter" />
-        <p>{product.name}</p>
+
+        <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+
+        <p>{productName}</p>
       </div>
 
       <div className="flex w-full space-x-5">
+        {/* LEFT SIDE */}
         <div className="space-y-5 w-full max-w-[600px]">
           <div
             className="aspect-square max-h-[600px] relative overflow-hidden rounded-[40px] bg-gray-50 flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity duration-200"
-            onClick={() => openModal(0)}
+            onClick={openModal}
           >
-            <Image
-              src={`/assets/products/${product.name}.png`}
-              alt="Product Img"
-              width={250}
-              height={250}
-            />
+            {hasValidImage ? (
+              <Image
+                src={product.imageUrl}
+                alt={productName}
+                width={500}
+                height={500}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="flex items-center justify-center w-full h-full text-gray-400">
+                No image available
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {productImages.map((imageSrc, index) => (
+          {/* THUMBNAIL */}
+          {hasValidImage && (
+            <div className="flex flex-wrap items-center gap-3">
               <div
-                key={index}
                 className="size-[140px] relative overflow-hidden rounded-3xl bg-gray-100 flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                onClick={() => openModal(index)}
+                onClick={openModal}
               >
                 <Image
-                  src={imageSrc}
-                  alt="Product Img"
-                  width={80}
-                  height={80}
+                  src={product.imageUrl}
+                  alt={`${productName} thumbnail`}
+                  fill
+                  className="object-cover"
                 />
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center">
-                {[...Array(3)].map((_, index) => (
-                  <StarIcon
-                    key={index}
-                    className="text-yellow-300 fill-yellow-300 w-5 h-5"
-                  />
-                ))}
-              </div>
-            </div>
+        {/* RIGHT SIDE */}
+        <div className="space-y-4 w-full">
+          {/* RATING */}
+          <div className="flex items-center">
+            {[...Array(3)].map((_, index) => (
+              <StarIcon
+                key={index}
+                className="text-yellow-300 fill-yellow-300 w-5 h-5"
+              />
+            ))}
           </div>
+
+          {/* PRODUCT NAME */}
           <h2 className="text-gray-900 text-lg md:text-2xl font-medium">
-            {product.name}
+            {productName}
           </h2>
 
-          <div className="space-y-4">
-            <p className="text-gray-400 md:text-lg">{product.description}</p>
-            <p>
-              Lorem ipsum dolor, sit amet consectetur adipisicing elit. Quo
-              reiciendis repellat beatae iusto corporis distinctio nostrum error
-              quas adipisci quae in sunt, inventore incidunt molestias quibusdam
-              pariatur. Explicabo, voluptatibus pariatur.
-            </p>
-          </div>
+          {/* DESCRIPTION */}
+          <p className="text-gray-400 md:text-lg">{productDescription}</p>
 
+          {/* AI GENERATE */}
+          <button
+            type="button"
+            onClick={generateProductWithAI}
+            disabled={isGenerating || !hasValidImage}
+            className="
+              flex items-center justify-center gap-2
+              rounded-full
+              border border-gray-200
+              bg-white
+              px-5 py-2.5
+              text-sm font-medium
+              transition-all duration-200
+              hover:border-[#BAFC50]
+              hover:bg-[#BAFC50]/10
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
+          >
+            <SparklesIcon className="w-4 h-4" />
+
+            {isGenerating ? "Generating..." : "AI Generate"}
+          </button>
+
+          {/* PRICE */}
           <p className="text-xl md:text-3xl font-semibold text-gray-900">
             ${product.price}
           </p>
 
+          {/* BUY */}
           <button className="mt-2 py-2 md:py-3 px-6 md:text-lg font-medium rounded-full w-full max-w-[300px] border-2 border-transparent bg-[#BAFC50] hover:bg-white hover:border-[#BAFC50] hover:scale-95 duration-200">
-            <p>Buy Now</p>
+            Buy Now
           </button>
         </div>
       </div>
 
-      {/* Image Modal */}
-      {isModalOpen && (
+      {/* IMAGE MODAL */}
+      {isModalOpen && hasValidImage && (
         <div
           className="fixed inset-0 z-50"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+          }}
           onClick={closeModal}
         >
-          {/* Close button - top right corner of page */}
           <button
+            type="button"
             onClick={closeModal}
             className="absolute top-6 right-6 z-20 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-3 transition-all duration-200 shadow-lg"
           >
             <XMarkIcon className="w-6 h-6 text-gray-600" />
           </button>
 
-          {/* Navigation buttons - bottom of page */}
-          {productImages.length > 1 && (
-            <div
-              className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex items-center space-x-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Previous button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevImage();
-                }}
-                className="bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-3 transition-all duration-200 shadow-lg"
-              >
-                <ChevronLeftIcon className="w-6 h-6 text-gray-600" />
-              </button>
-
-              {/* Image counter */}
-              <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm">
-                {currentImageIndex + 1} / {productImages.length}
-              </div>
-
-              {/* Next button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextImage();
-                }}
-                className="bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full p-3 transition-all duration-200 shadow-lg"
-              >
-                <ChevronRightIcon className="w-6 h-6 text-gray-600" />
-              </button>
-            </div>
-          )}
-
-          {/* Modal image - centered */}
           <div
             className="flex items-center justify-center h-full p-4"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="max-w-5xl max-h-full">
               <Image
-                src={productImages[currentImageIndex]}
-                alt="Product Image"
+                src={product.imageUrl}
+                alt={productName}
                 width={800}
                 height={800}
                 className="w-full h-auto max-h-[85vh] object-contain"

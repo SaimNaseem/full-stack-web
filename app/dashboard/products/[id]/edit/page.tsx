@@ -4,19 +4,14 @@ import { ArrowUpTrayIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { yupResolver } from "@hookform/resolvers/yup";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import * as yup from "yup";
 
 import api from "@/lib/axios";
 
-/*
- * =========================================
- * CLOUDINARY IMAGE UPLOAD
- * =========================================
- */
 const handleImageUpload = async (file: File) => {
   const formData = new FormData();
 
@@ -27,11 +22,6 @@ const handleImageUpload = async (file: File) => {
   return response.data.url;
 };
 
-/*
- * =========================================
- * VALIDATION
- * =========================================
- */
 const schema = yup.object({
   name: yup.string().required("Product Name is required"),
 
@@ -55,22 +45,15 @@ const schema = yup.object({
 
 type FormType = yup.InferType<typeof schema>;
 
-type AIProductResponse = {
-  name: string;
-  description: string;
-};
-
-const AddNewProduct = () => {
+const EditProduct = () => {
+  const params = useParams();
   const router = useRouter();
+
+  const productId = params.id as string;
 
   const [isPublished, setIsPublished] = useState<boolean>(true);
 
   const [productImage, setProductImage] = useState<string | null>(null);
-
-  const [aiGenerateTitle, setAiGenerateTitle] = useState<boolean>(false);
-
-  const [aiGenerateDescription, setAiGenerateDescription] =
-    useState<boolean>(false);
 
   const [isGeneratingTitle, setIsGeneratingTitle] = useState<boolean>(false);
 
@@ -78,6 +61,8 @@ const AddNewProduct = () => {
     useState<boolean>(false);
 
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
+
+  const [loading, setLoading] = useState<boolean>(true);
 
   const {
     register,
@@ -98,11 +83,40 @@ const AddNewProduct = () => {
     },
   });
 
-  /*
-   * =========================================
-   * NORMAL FILE UPLOAD
-   * =========================================
-   */
+  // LOAD PRODUCT
+  useEffect(() => {
+    const loadProduct = async () => {
+      try {
+        const response = await api.get(`/api/v1/products/${productId}`);
+
+        const product = response.data;
+
+        reset({
+          name: product.name ?? "",
+          description: product.description ?? "",
+          quantity: product.stockLevel,
+          price: product.price,
+          stripeId: product.stripeId ?? undefined,
+        });
+
+        setProductImage(product.imageUrl || null);
+
+        setIsPublished(product.isPublished ?? true);
+      } catch (error) {
+        console.error("Failed to load product:", error);
+
+        alert("Product could not be loaded");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (productId) {
+      loadProduct();
+    }
+  }, [productId, reset]);
+
+  // IMAGE CHANGE
   const handleImageChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -125,20 +139,11 @@ const AddNewProduct = () => {
     event.target.value = "";
   };
 
-  /*
-   * =========================================
-   * REMOVE IMAGE
-   * =========================================
-   */
   const handleRemoveImage = () => {
     setProductImage(null);
   };
 
-  /*
-   * =========================================
-   * DRAG OVER
-   * =========================================
-   */
+  // DRAG EVENTS
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -146,11 +151,6 @@ const AddNewProduct = () => {
     setIsDragOver(true);
   };
 
-  /*
-   * =========================================
-   * DRAG LEAVE
-   * =========================================
-   */
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -158,11 +158,6 @@ const AddNewProduct = () => {
     setIsDragOver(false);
   };
 
-  /*
-   * =========================================
-   * DRAG & DROP + CLOUDINARY
-   * =========================================
-   */
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -196,17 +191,7 @@ const AddNewProduct = () => {
     }
   };
 
-  /*
-   * =========================================
-   * AI PRODUCT GENERATION
-   * =========================================
-   *
-   * Generates BOTH:
-   * - Product Name
-   * - Product Description
-   *
-   * from the uploaded Cloudinary image.
-   */
+  // AI GENERATION
   const generateProductWithAI = async () => {
     if (!productImage) {
       alert("Please upload a product image first.");
@@ -215,24 +200,10 @@ const AddNewProduct = () => {
     }
 
     try {
-      /*
-       * Show loading state for both
-       * title and description.
-       */
       setIsGeneratingTitle(true);
       setIsGeneratingDescription(true);
 
-      setAiGenerateTitle(true);
-      setAiGenerateDescription(true);
-
-      /*
-       * Call Spring Boot Gemini endpoint.
-       *
-       * 45 second timeout because image AI
-       * generation can take several seconds,
-       * especially when Gemini retries a 503.
-       */
-      const response = await api.post<AIProductResponse>(
+      const response = await api.post(
         "/api/v1/products/ai/product",
         {
           imageUrl: productImage,
@@ -242,86 +213,69 @@ const AddNewProduct = () => {
         },
       );
 
-      const generatedName = response.data?.name;
+      console.log("AI RESPONSE:", response.data);
 
-      const generatedDescription = response.data?.description;
-
-      if (!generatedName) {
-        throw new Error("AI did not return a product name.");
+      if (response.data.name) {
+        setValue("name", response.data.name, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
       }
 
-      if (!generatedDescription) {
-        throw new Error("AI did not return a product description.");
+      if (response.data.description) {
+        setValue("description", response.data.description, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
       }
-
-      /*
-       * Set generated name.
-       */
-      setValue("name", generatedName, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-
-      /*
-       * Set generated description.
-       */
-      setValue("description", generatedDescription, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-
-      console.log("AI generated product:", response.data);
-    } catch (error: any) {
+    } catch (error) {
       console.error("AI generation failed:", error);
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "AI generation failed. Please try again.";
-
-      alert(`Error: ${errorMessage}`);
+      alert("AI generation failed. Please try again.");
     } finally {
-      /*
-       * Restore normal form state.
-       */
       setIsGeneratingTitle(false);
-      setIsGeneratingDescription(false);
 
-      setAiGenerateTitle(false);
-      setAiGenerateDescription(false);
+      setIsGeneratingDescription(false);
     }
   };
 
-  /*
-   * =========================================
-   * CREATE PRODUCT
-   * =========================================
-   */
+  // FORM VALIDATION
+  const isFormValid = () => {
+    const productName = watch("name");
+
+    const quantity = watch("quantity");
+
+    const price = watch("price");
+
+    return Boolean(
+      productName &&
+      productName.trim() !== "" &&
+      quantity &&
+      quantity > 0 &&
+      price &&
+      price > 0,
+    );
+  };
+
+  // UPDATE PRODUCT
   const onSubmit: SubmitHandler<FormType> = async (data) => {
     try {
-      const { stripeId, quantity, ...payload } = data;
+      const { stripeId: _stripeId, quantity, ...payload } = data;
 
       const productData = {
         ...payload,
-
         stockLevel: quantity,
-
         imageUrl: productImage,
-
-        isPublished: isPublished,
+        isPublished,
       };
 
-      console.log("Product data:", productData);
+      console.log("Updating product:", productData);
 
-      await api.post("/api/v1/products", productData);
-
-      reset();
-
-      setProductImage(null);
+      await api.put(`/api/v1/products/${productId}`, productData);
 
       router.push("/dashboard/my-products");
     } catch (error: any) {
-      console.error("Error submitting product:", error);
+      console.error("Error updating product:", error);
 
       const errorMessage =
         error.response?.data?.message || error.message || "An error occurred";
@@ -330,27 +284,13 @@ const AddNewProduct = () => {
     }
   };
 
-  /*
-   * =========================================
-   * FORM VALIDATION
-   * =========================================
-   */
-  const isFormValid = () => {
-    const productName = watch("name");
-
-    const quantity = watch("quantity");
-
-    const price = watch("price");
-
+  if (loading) {
     return (
-      productName &&
-      productName.trim() !== "" &&
-      quantity &&
-      quantity > 0 &&
-      price &&
-      price > 0
+      <div className="flex items-center justify-center py-20">
+        <p className="text-gray-500">Loading product...</p>
+      </div>
     );
-  };
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 md:space-y-8">
@@ -364,9 +304,9 @@ const AddNewProduct = () => {
             My Products
           </Link>
 
-          <ChevronRightIcon className="w-4 h-4 text-gray-lighter" />
+          <ChevronRightIcon className="w-4 h-4 text-gray-400" />
 
-          <p className="line-clamp-1">{watch("name") || "Add new Product"}</p>
+          <p className="line-clamp-1">{watch("name") || "Edit Product"}</p>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -374,7 +314,7 @@ const AddNewProduct = () => {
             href="/dashboard/my-products"
             className="flex items-center space-x-2 border border-gray-200 rounded-full px-6 py-1 hover:bg-black hover:text-white hover:scale-95 duration-200"
           >
-            Cancel
+            <p>Cancel</p>
           </Link>
 
           <button
@@ -388,13 +328,14 @@ const AddNewProduct = () => {
                 : "bg-[#BAFC50] hover:bg-white hover:border-[#BAFC50] hover:scale-95",
             )}
           >
-            Add Product
+            Update Product
           </button>
         </div>
       </div>
 
+      {/* CONTENT */}
       <div className="space-y-5 md:space-y-8 xl:flex xl:items-start xl:space-y-0 w-full xl:space-x-6">
-        {/* LEFT */}
+        {/* LEFT SIDE */}
         <div className="border border-gray-200 p-4 md:p-6 rounded-2xl space-y-5 w-full">
           <h2 className="text-lg md:text-xl font-light text-gray-400">
             Product Information
@@ -412,8 +353,7 @@ const AddNewProduct = () => {
                   <button
                     type="button"
                     onClick={generateProductWithAI}
-                    disabled={isGeneratingTitle || !productImage}
-                    className="flex items-center space-x-2 px-3 py-1 bg-[#BAFC50] text-black rounded-full hover:bg-[#BAFC50]/80 duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center space-x-2 px-3 py-1 bg-[#BAFC50] text-black rounded-full hover:bg-[#BAFC50]/80 duration-200 text-sm"
                   >
                     <svg
                       className="w-4 h-4"
@@ -446,21 +386,12 @@ const AddNewProduct = () => {
 
               <input
                 type="text"
-                placeholder={
-                  aiGenerateTitle
-                    ? "AI is generating product name..."
-                    : "Enter your product name"
-                }
-                disabled={aiGenerateTitle}
+                placeholder="Enter your product name"
                 {...register("name")}
                 className={twMerge(
                   "outline-none border border-gray-200 ring ring-transparent py-2 px-3 rounded-lg duration-300 placeholder:text-gray-400",
 
-                  errors.name
-                    ? "border-red-500 ring-red-300"
-                    : aiGenerateTitle
-                      ? "bg-gray-50 text-gray-500 cursor-not-allowed"
-                      : "input-hover",
+                  errors.name ? "border-red-500 ring-red-300" : "input-hover",
                 )}
               />
 
@@ -485,8 +416,7 @@ const AddNewProduct = () => {
                   <button
                     type="button"
                     onClick={generateProductWithAI}
-                    disabled={isGeneratingDescription || !productImage}
-                    className="flex items-center space-x-2 px-3 py-1 bg-[#BAFC50] text-black rounded-full hover:bg-[#BAFC50]/80 duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center space-x-2 px-3 py-1 bg-[#BAFC50] text-black rounded-full hover:bg-[#BAFC50]/80 duration-200 text-sm"
                   >
                     <svg
                       className="w-4 h-4"
@@ -518,20 +448,9 @@ const AddNewProduct = () => {
               </div>
 
               <textarea
-                placeholder={
-                  aiGenerateDescription
-                    ? "AI is generating product description..."
-                    : "Enter your product Description"
-                }
-                disabled={aiGenerateDescription}
+                placeholder="Enter your product Description"
                 {...register("description")}
-                className={twMerge(
-                  "outline-none border border-gray-200 ring ring-transparent py-2 px-3 rounded-lg duration-300 placeholder:text-gray-400",
-
-                  aiGenerateDescription
-                    ? "bg-gray-50 text-gray-500 cursor-not-allowed"
-                    : "input-hover",
-                )}
+                className="outline-none border border-gray-200 ring ring-transparent py-2 px-3 rounded-lg duration-300 placeholder:text-gray-400 input-hover"
                 rows={4}
               />
             </div>
@@ -635,7 +554,7 @@ const AddNewProduct = () => {
           </div>
         </div>
 
-        {/* RIGHT */}
+        {/* RIGHT SIDE */}
         <div className="space-y-5 md:space-y-8 w-full">
           {/* STATUS */}
           <div className="border border-gray-200 p-4 md:p-6 rounded-2xl space-y-5">
@@ -740,7 +659,12 @@ const AddNewProduct = () => {
               </h2>
 
               <div className="relative w-12 h-5">
-                <Image src="/assets/stripe.png" alt="Stripe" fill />
+                <Image
+                  src="/assets/stripe.png"
+                  alt="stripe img"
+                  fill
+                  className="object-contain"
+                />
               </div>
             </div>
 
@@ -753,10 +677,7 @@ const AddNewProduct = () => {
               </label>
 
               <div className="outline-none border border-gray-200 ring ring-transparent py-2 px-3 rounded-lg duration-300 bg-gray-50 text-gray-600 cursor-not-allowed">
-                <p className="text-sm text-gray-500">
-                  This ID will be automatically generated when the product is
-                  created
-                </p>
+                <p className="text-sm text-gray-500">{productId}</p>
               </div>
             </div>
           </div>
@@ -766,4 +687,4 @@ const AddNewProduct = () => {
   );
 };
 
-export default AddNewProduct;
+export default EditProduct;

@@ -52,7 +52,7 @@ const DashLayout = ({ children }: TDashLayout) => {
         {/* TOP Banner */}
         <div className="py-3 lg:flex items-center justify-between lg:space-x-6">
           <p className="text-lg md:text-2xl font-medium text-gray-900 line-clamp-1">
-            <span className="font-light">Welcome Back,</span> Muhammed 👋
+            <span className="font-light">Welcome Back,</span> Saim 👋
           </p>
 
           <div className="hidden lg:flex items-center lg:space-x-3">
@@ -82,8 +82,8 @@ const DashLayout = ({ children }: TDashLayout) => {
                 className="w-10 h-10 border border-gray-200 bg-gray-100 rounded-full relative overflow-hidden hover:scale-105 hover:shadow-lg duration-200 cursor-pointer"
               >
                 <Image
-                  src="https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop&crop=face"
-                  alt="Muhammed's Profile"
+                  src="https://res.cloudinary.com/b6vpjbqb/image/upload/v1791220895/Schwarz-Wei%C3%9F-Portr%C3%A4t_eines_b%C3%A4rtigen_Mannes.png"
+                  alt="Saim's Profile"
                   fill
                   className="object-cover"
                   onError={(e) => {
@@ -103,7 +103,7 @@ const DashLayout = ({ children }: TDashLayout) => {
               </button>
 
               {/* Profile Name */}
-              <p className="md:text-lg">Muhammed</p>
+              <p className="md:text-lg">Saim N.</p>
 
               {/* Logout Popup */}
               <AnimatePresence>

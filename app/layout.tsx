@@ -4,7 +4,7 @@ import { inter } from "../src/fonts";
 import "../src/globals.css";
 
 export const metadata: Metadata = {
-  title: "Amigoscode",
+  title: "Tradify",
 };
 
 type Props = {
